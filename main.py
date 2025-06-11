@@ -8,8 +8,6 @@ by Christopher Manson.
 My goal is to be able to tell the user which door to go through next without revealing the whole solution.
 
 I want to be able to do the reverse journey as well.
-
-My implementation is a simple BFS (Breadth-First Search).
 """
 from typing import List, Deque
 from collections import deque
@@ -27,10 +25,11 @@ A dictionary that tracks what rooms could lead to the current room.
 
 Room : [List_of_rooms_leading_to_here]
 """
-first_quest_solutions = list()
-second_quest_solutions = list()
+first_quest_solutions_from_start = list()
+second_quest_solutions_from_start = list()
 best_path_first_quest = [1, 26, 30, 42, 4, 29, 17, 45]
 best_path_second_quest = [45, 23, 8, 12, 39, 4, 15, 37, 20, 1]
+steps_from_goal: int
 
 
 def main():
@@ -87,42 +86,47 @@ def setup():
     calculate_parents()
 
     global children_of_room
-    global first_quest_solutions
+    global first_quest_solutions_from_start
     while True:
-        x = find_path(1, 45, first_quest_solutions)
+        x = find_path(1, 45, first_quest_solutions_from_start)
         if not x:
             break
         else:
-            first_quest_solutions.append(x)
-    first_quest_solutions = sorted(first_quest_solutions, key=len)
+            first_quest_solutions_from_start.append(x)
+    first_quest_solutions_from_start = sorted(first_quest_solutions_from_start, key=len)
 
-    print("FIRST QUEST (" + str(len(first_quest_solutions)) + " solutions):")
-    for x in first_quest_solutions:
+    """
+    print("FIRST QUEST (" + str(len(first_quest_solutions_from_start)) + " solutions):")
+    for x in first_quest_solutions_from_start:
         print_arr_of_int(x)
+    """
 
     global parents_of_room
-    global second_quest_solutions
+    global second_quest_solutions_from_start
     while True:
-        x = find_path(45, 1, second_quest_solutions)
+        x = find_path(45, 1, second_quest_solutions_from_start)
         if not x:
             break
         else:
-            second_quest_solutions.append(x)
-    second_quest_solutions = sorted(second_quest_solutions, key=len)
+            second_quest_solutions_from_start.append(x)
+    second_quest_solutions_from_start = sorted(second_quest_solutions_from_start, key=len)
 
-    print("SECOND QUEST (" + str(len(second_quest_solutions)) + " solutions):")
-    for x in second_quest_solutions:
+    """
+    print("SECOND QUEST (" + str(len(second_quest_solutions_from_start)) + " solutions):")
+    for x in second_quest_solutions_from_start:
         print_arr_of_int(x)
+    """
 
-    global best_path_first_quest
-    global best_path_second_quest
+    global steps_from_goal
+    curr_room: int
+    prev_room: List[int]
+    best_guess: int
     while True:
         try:
-            quest_num = int(input("Are you in:\n1. The first quest\n2. The return journey\n"))
+            quest_num = int(input("\nAre you in:\n1. The first quest\n2. The return journey\n").strip())
             if quest_num != 1 and quest_num != 2:
                 raise ValueError()
-            curr_room: int
-            prev_room: List[int]
+
             if quest_num == 1:
                 curr_room = 1
                 prev_room = [1]
@@ -130,14 +134,15 @@ def setup():
                 curr_room = 45
                 prev_room = [45]
             while True:
-                print("You are in room " + str(curr_room))
+                print("\nYou are in room #" + str(curr_room))
                 if children_of_room[curr_room] == []:
                     print("You entered a kill room and that was the end of you!")
                     exit(0)
                 print("You can access rooms: ", end="")
                 print_arr_of_int(children_of_room[curr_room])
                 guess = int(
-                    input("Guess what room you should go to next or type \"0\" for the answer or \"-1\" to go back: "))
+                    input(
+                        "Guess what room you should go to next or type \"0\" for the answer or \"-1\" to go back: ").strip())
                 if guess == -1:
                     if len(prev_room) == 1:
                         print("You cannot go any further back!")
@@ -145,8 +150,9 @@ def setup():
                         curr_room = prev_room[-1]
                         del prev_room[-1]
                     continue
+                best_guess = find_next_step_in_shortest_route_from_my_pos(curr_room, quest_num)
                 if guess == 0:
-                    guess = find_next_step_in_shortest_route_from_my_pos(curr_room, quest_num)
+                    guess = best_guess
                     print("You guessed " + str(guess) + ".")
                 if guess < 1 or guess > 45:
                     print("That room does not exist!")
@@ -155,18 +161,28 @@ def setup():
                         quest_num == 2 and parents_of_room[curr_room]):
                     print("You cannot reach that room from here.")
                     continue
-                if guess == find_next_step_in_shortest_route_from_my_pos(curr_room, quest_num):
-                    print("That is the best choice!")
+                if guess == best_guess:
+                    print("That was the best choice!")
                 else:
-                    print("That is not the best choice.")
+                    print("That was not the best choice.")
+                print("You are now " + str(steps_from_goal) + " steps from your goal.")
                 prev_room.append(curr_room)
                 curr_room = guess
 
         except ValueError:
             print("That is not a valid input!")
+        except TypeError:
+            print("That is not a valid input!")
 
 
 def find_path(start_room: int, goal_room: int, already_found_solutions: List[List[int]]):
+    """
+
+    :param start_room: The room you are starting from.
+    :param goal_room: The room you are trying to get to.
+    :param already_found_solutions: Optional, tracks a list of solutions already found.
+    :return:
+    """
     global children_of_room
     queue: deque[List[int]] = deque()
     queue.append([start_room])
@@ -249,15 +265,18 @@ def find_next_step_in_shortest_route_from_my_pos(curr_room: int, quest_num: int)
     :param quest_num: 1. If you are trying to find room #45, 2. if you are trying to find your way back to room #1.
     :return: The shortest path to victory OR an empty array if the player has reached a kill room.
     """
-    global first_quest_solutions
-    global second_quest_solutions
+    if curr_room == 24:
+        return -1
+
+    global first_quest_solutions_from_start
+    global second_quest_solutions_from_start
 
     possible_solutions_list = []
     solutions_with_curr_room: List[List[int]] = []
     if quest_num == 1:
-        possible_solutions_list = first_quest_solutions
+        possible_solutions_list = first_quest_solutions_from_start
     elif quest_num == 2:
-        possible_solutions_list = second_quest_solutions
+        possible_solutions_list = second_quest_solutions_from_start
     else:
         raise Exception("Invalid quest number selected in find_shortest_route_from_my_position()")
 
@@ -266,9 +285,20 @@ def find_next_step_in_shortest_route_from_my_pos(curr_room: int, quest_num: int)
         if curr_room in solution:
             solutions_with_curr_room.append(solution)
 
-    # If no solutions possible...
+    # If no solutions
+    solutions = []
     if not solutions_with_curr_room:
-        return -1
+        goal_room = 45 if quest_num == 1 else 1
+
+        while True:
+            x = find_path(curr_room, goal_room, solutions)
+            if not x:
+                break
+            else:
+                solutions.append(x)
+        solutions_with_curr_room = sorted(solutions, key=len)
+        print(
+            "We found " + str(len(solutions_with_curr_room)) + " solutions and are choosing the best one to guide you.")
 
     best_route: List[int] = [100] * 50
     for solution in solutions_with_curr_room:
@@ -276,8 +306,9 @@ def find_next_step_in_shortest_route_from_my_pos(curr_room: int, quest_num: int)
         steps_remaining = solution[curr_room_idx + 1:]
         if len(steps_remaining) < len(best_route):
             best_route = steps_remaining
-    print("The best route is:")
-    print_arr_of_int(best_route)
+
+    global steps_from_goal
+    steps_from_goal = len(best_route) - 1
     return best_route[0]
 
 
